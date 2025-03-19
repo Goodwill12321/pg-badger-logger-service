@@ -1,0 +1,39 @@
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.list-group-item {
+    cursor: pointer;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+#statusOutput {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+}
+
+.report-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.report-info {
+    flex-grow: 1;
+}
+
+.report-actions {
+    flex-shrink: 0;
+    margin-left: 1rem;
+}
+
+.processing-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    margin-left: 0.5rem;
+}
