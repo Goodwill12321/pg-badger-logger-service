@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -10,8 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"pg-badger-service/src/config"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ReportProcess struct {
@@ -54,11 +57,14 @@ func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 	}
 
 	// Create psql command to fetch log content
-	psqlCmd := fmt.Sprintf("psql -A -q -h %s -p %d -U %s -c \"SELECT pg_read_file('%s', 0, 1000000000000);\" | sed '1d;$d'", 
-		server.Host, server.Port, server.User, logFile)
+	psqlCmd := exec.Command("psql", "-A", "-q", 
+		"-h", server.Host, 
+		"-p", fmt.Sprintf("%d", server.Port), 
+		"-U", server.User, 
+		"-c", fmt.Sprintf("SELECT pg_read_file('%s', 0, 1000000000000);", logFile))
 
-	// Create pgbadger command using psql output
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("%s | perl pgbadger -f stderr -v - -o %s", psqlCmd, reportPath))
+	// Create pgbadger command
+	pgbadgerCmd := exec.Command("perl", "pgbadger", "-f", "stderr", "-v", "-", "-o", reportPath)
 
 	// Create output file
 	outputFile, err := os.Create(outputPath)
@@ -67,28 +73,85 @@ func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 		return
 	}
 
-	cmd.Stdout = outputFile
-	cmd.Stderr = outputFile
+	// Create pipes to connect the commands
+	r, w := io.Pipe()
 
-	// Start the command
-	if err := cmd.Start(); err != nil {
+	// Set up pgbadger command to read from the pipe
+	pgbadgerCmd.Stdin = r
+	pgbadgerCmd.Stdout = outputFile
+	pgbadgerCmd.Stderr = outputFile
+
+	// Start pgbadger
+	if err := pgbadgerCmd.Start(); err != nil {
+		r.Close()
+		w.Close()
 		outputFile.Close()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to start report generation: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to start pgbadger: %v", err)})
 		return
 	}
 
 	// Store the process
 	reportProcesses.Store(reportPath, &ReportProcess{
-		Cmd:       cmd,
+		Cmd:       pgbadgerCmd,
 		StartTime: time.Now(),
 	})
 
-	// Run the command in a goroutine
+	// Run psql and process its output in a goroutine
 	go func() {
+		defer w.Close()
 		defer outputFile.Close()
 		defer reportProcesses.Delete(reportPath)
 
-		if err := cmd.Wait(); err != nil {
+		// Set up stdout pipe for psql
+		stdout, err := psqlCmd.StdoutPipe()
+		if err != nil {
+			fmt.Fprintf(outputFile, "Error creating stdout pipe: %v\n", err)
+			return
+		}
+
+		// Start the psql command
+		if err := psqlCmd.Start(); err != nil {
+			fmt.Fprintf(outputFile, "Error starting psql command: %v\n", err)
+			return
+		}
+
+		// Process the output line by line
+		scanner := bufio.NewScanner(stdout)
+		var lineCount int
+		var isFirstLine = true
+
+		// Read and process each line
+		for scanner.Scan() {
+			lineCount++
+			text := scanner.Text()
+			
+			// Skip the first line
+			if isFirstLine {
+				isFirstLine = false
+				continue
+			}
+			
+			// Skip the last line that starts with '(' and ends with ')'
+			if len(text) > 0 && text[0] == '(' && text[len(text)-1] == ')' {
+				continue
+			}
+			
+			// Write the line to the pipe
+			fmt.Fprintln(w, text)
+		}
+
+		// Check for scanning errors
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintf(outputFile, "Error reading psql output: %v\n", err)
+		}
+
+		// Wait for psql to finish
+		if err := psqlCmd.Wait(); err != nil {
+			fmt.Fprintf(outputFile, "Error waiting for psql command: %v\n", err)
+		}
+
+		// Wait for pgbadger to finish
+		if err := pgbadgerCmd.Wait(); err != nil {
 			fmt.Printf("Error generating report: %v\n", err)
 		}
 	}()
