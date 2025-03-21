@@ -57,14 +57,16 @@ func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 	}
 
 	// Create psql command to fetch log content
-	psqlCmd := exec.Command("psql", "-A", "-q", 
-		"-h", server.Host, 
-		"-p", fmt.Sprintf("%d", server.Port), 
-		"-U", server.User, 
-		"-c", fmt.Sprintf("SELECT pg_read_file('%s', 0, 1000000000000);", logFile))
+	psqlCmd := exec.Command("psql", "-A", "-q",
+		"-h", server.Host,
+		"-p", fmt.Sprintf("%d", server.Port),
+		"-U", server.User,
+		"-c", fmt.Sprintf("SELECT pg_read_file(pg_log/'%s', 0, 1000000000000);", logFile))
 
 	// Create pgbadger command
 	pgbadgerCmd := exec.Command("perl", "pgbadger", "-f", "stderr", "-v", "-", "-o", reportPath)
+
+	fmt.Println(pgbadgerCmd.String())
 
 	// Create output file
 	outputFile, err := os.Create(outputPath)
@@ -124,18 +126,18 @@ func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 		for scanner.Scan() {
 			lineCount++
 			text := scanner.Text()
-			
+
 			// Skip the first line
 			if isFirstLine {
 				isFirstLine = false
 				continue
 			}
-			
+
 			// Skip the last line that starts with '(' and ends with ')'
 			if len(text) > 0 && text[0] == '(' && text[len(text)-1] == ')' {
 				continue
 			}
-			
+
 			// Write the line to the pipe
 			fmt.Fprintln(w, text)
 		}
