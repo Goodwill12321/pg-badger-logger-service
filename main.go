@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -13,9 +12,9 @@ import (
 	"pg-badger-service/src/handlers"
 )
 
-var (
+/* var (
 	reportLock sync.Map // Map to track running reports
-)
+) */
 
 func main() {
 	configPath := flag.String("config", "config/config.yaml", "path to config file")
@@ -30,7 +29,13 @@ func main() {
 
 	// Serve static files
 	router.Static("/static", "./static")
+	router.Static("/report", "./report")
+
 	router.LoadHTMLGlob("templates/*")
+
+	/*
+		dir, _ := os.Getwd()
+		fmt.Println("Current dir:", dir) */
 
 	// API routes
 	router.GET("/", handleIndex)
@@ -41,8 +46,10 @@ func main() {
 	router.GET("/api/report-status/:server/:report", handleReportStatus)
 	router.POST("/api/stop-report/:server/:report", handleStopReport)
 
-	fmt.Println("Server starting on http://localhost:8081")
-	if err := router.Run(":8081"); err != nil {
+	thisServicePort := config.GetThisServicePort()
+
+	fmt.Println("Server starting on http://localhost:", thisServicePort)
+	if err := router.Run(fmt.Sprintf(":%d", thisServicePort)); err != nil {
 		log.Fatalf("error starting server: %v", err)
 	}
 }
