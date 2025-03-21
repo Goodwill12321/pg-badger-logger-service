@@ -1,0 +1,4 @@
+pgbadger
+config/config.yaml
+*.out
+report/*
