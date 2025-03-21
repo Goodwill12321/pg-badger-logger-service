@@ -150,7 +150,7 @@ function checkReportStatus(reportName) {
     }
 
     updateStatus();
-    statusCheckInterval = setInterval(updateStatus, 2000);
+    statusCheckInterval = setInterval(updateStatus, 3000);
 
     document.getElementById('statusModal').addEventListener('hidden.bs.modal', () => {
         clearInterval(statusCheckInterval);
