@@ -2,3 +2,5 @@ pgbadger
 config/config.yaml
 *.out
 report/*
+__debug_*.exe
+config/config.yaml
