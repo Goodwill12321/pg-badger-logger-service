@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
-	
+
 	"pg-badger-service/src/models"
 )
 
@@ -18,9 +19,10 @@ type LogFile struct {
 }
 
 func GetLogs(c *gin.Context, server models.PostgresServer) {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		server.Host, server.Port, server.User, server.Password, server.Database, server.SSLMode)
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s",
+		server.Host, server.Port, server.User, server.Password)
 
+	os.Unsetenv("PGLOCALEDIR")
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect to database: %v", err)})
