@@ -28,7 +28,8 @@ func GetReports(c *gin.Context, serverName string, reportDir string) {
 		return
 	}
 
-	var reports []Report
+	var reports []Report = []Report{} // Initialize empty array to return not null
+
 	for _, entry := range entries {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".html" {
 			info, err := entry.Info()
