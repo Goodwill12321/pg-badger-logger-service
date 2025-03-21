@@ -5,14 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v2"
 	"pg-badger-service/src/models"
+
+	"gopkg.in/yaml.v2"
 )
 
 // Config represents the application configuration
 type Config struct {
-	Servers   []models.PostgresServer `yaml:"servers"`
-	ReportDir string                  `yaml:"report_dir"`
+	ThisServicePort int                     `yaml:"this_service_port"`
+	Servers         []models.PostgresServer `yaml:"servers"`
+	ReportDir       string                  `yaml:"report_dir"`
 }
 
 // AppConfig is the global configuration instance
@@ -64,4 +66,9 @@ func GetServerByName(name string) (models.PostgresServer, bool) {
 // GetReportDir returns the report directory path
 func GetReportDir() string {
 	return AppConfig.ReportDir
+}
+
+// GetReportDir returns the report directory path
+func GetThisServicePort() int {
+	return AppConfig.ThisServicePort
 }
