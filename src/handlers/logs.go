@@ -19,8 +19,8 @@ type LogFile struct {
 }
 
 func GetLogs(c *gin.Context, server models.PostgresServer) {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s",
-		server.Host, server.Port, server.User, server.Password)
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s sslmode=%s",
+		server.Host, server.Port, server.User, server.Password, server.SSLMode)
 
 	os.Unsetenv("PGLOCALEDIR")
 	db, err := sql.Open("postgres", connStr)
@@ -30,7 +30,7 @@ func GetLogs(c *gin.Context, server models.PostgresServer) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT * FROM pg_ls_logdir()")
+	rows, err := db.Query("SELECT * FROM pg_ls_logdir() WHERE name like '%.log'")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get logs: %v", err)})
 		return
