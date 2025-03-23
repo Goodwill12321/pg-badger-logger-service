@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,16 @@ type ReportProcess struct {
 }
 
 var reportProcesses sync.Map
+
+func getOSCommand(command string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("cmd", "/C", command)
+		return cmd
+	} else {
+		cmd := exec.Command("/bin/sh", "-c", command)
+		return cmd
+	}
+}
 
 func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 	logFile := c.PostForm("logFile")
@@ -57,14 +68,23 @@ func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 	}
 
 	// Create psql command to fetch log content
-	psqlCmd := exec.Command("psql", "-A", "-q",
-		"-h", server.Host,
-		"-p", fmt.Sprintf("%d", server.Port),
-		"-U", server.User,
-		"-c", fmt.Sprintf("SELECT pg_read_file(pg_log/'%s', 0, 1000000000000);", logFile))
+	/*psqlCmd := exec.Command("psql", "-A", "-q",
+	"-h", server.Host,
+	"-p", fmt.Sprintf("%d", server.Port),
+	"-U", server.User,
+	"-d", server.Database,
+	"-c", fmt.Sprintf("\"SELECT pg_read_file('pg_log/%s', 0, 1000000000000);\"", logFile))*/
 
+	psqlCmd := getOSCommand(fmt.Sprintf("psql -A -q -h %s -p %d -U %s -d %s -c \"SELECT pg_read_file('pg_log/%s');\"",
+		server.Host,
+		server.Port, server.User,
+		server.Database,
+		logFile))
+
+	fmt.Println(psqlCmd.String())
 	// Create pgbadger command
-	pgbadgerCmd := exec.Command("perl", "pgbadger", "-f", "stderr", "-v", "-", "-o", reportPath)
+	//pgbadgerCmd := exec.Command("perl", "pgbadger", "-f", "stderr", "-v", "-o", reportPath, "-")
+	pgbadgerCmd := getOSCommand(fmt.Sprintf("perl pgbadger -f stderr -v -o %s - ", reportPath))
 
 	fmt.Println(pgbadgerCmd.String())
 
@@ -147,10 +167,10 @@ func GenerateReport(c *gin.Context, serverName string, reportDir string) {
 			fmt.Fprintf(outputFile, "Error reading psql output: %v\n", err)
 		}
 
-		// Wait for psql to finish
+		/*// Wait for psql to finish
 		if err := psqlCmd.Wait(); err != nil {
 			fmt.Fprintf(outputFile, "Error waiting for psql command: %v\n", err)
-		}
+		}*/
 
 		// Wait for pgbadger to finish
 		if err := pgbadgerCmd.Wait(); err != nil {
