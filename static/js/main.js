@@ -58,7 +58,7 @@ function displayLogs(logs) {
     const logsDiv = document.getElementById('logsList');
     const logsContent = document.getElementById('logsListContent');
     logsDiv.style.display = 'block';
-    
+
     logsContent.innerHTML = logs.map(log => `
         <a href="#" class="list-group-item list-group-item-action" onclick="confirmGenerateReport('${log.name}')">
             <div class="d-flex w-100 justify-content-between">
@@ -74,8 +74,15 @@ function displayReports(reports) {
     const reportsDiv = document.getElementById('reportsList');
     const reportsContent = document.getElementById('reportsListContent');
     reportsDiv.style.display = 'block';
-    
-    reportsContent.innerHTML = reports.map(report => `
+
+    reportsContent.innerHTML = reports.map(report => {
+        const extension = report.name.includes('.')
+            ? report.name.slice(report.name.lastIndexOf('.') + 1).toLowerCase()
+            : ''; // Защита от файлов без расширения
+
+        console.log(`Report: ${report.name}, Extension: ${extension}`); // Вывод в консоль
+
+        return `
         <div class="list-group-item">
             <div class="report-item">
                 <div class="report-info">
@@ -84,14 +91,14 @@ function displayReports(reports) {
                     ${report.isProcessing ? '<span class="badge bg-warning processing-badge">Processing</span>' : ''}
                 </div>
                 <div class="report-actions">
-                    ${report.isProcessing ?
-                        `<button class="btn btn-sm btn-info" onclick="checkReportStatus('${report.name}')">View Status</button>` :
-                        `<a href="/report/${currentServer}/${report.name}" target="_blank" class="btn btn-sm btn-primary">View Report</a>`
-                    }
+                    ${report.isProcessing || extension === "out" ?
+                `<button class="btn btn-sm btn-info" onclick="checkReportStatus('${report.name}')">View process log</button>` :
+                `<a href="/report/${currentServer}/${report.name}" target="_blank" class="btn btn-sm btn-primary">View Report</a>`
+            }
                 </div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function confirmGenerateReport(logName) {
@@ -108,24 +115,24 @@ function generateReport(serverName, logName) {
         method: 'POST',
         body: formData
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            alert(data.error);
-        } else {
-            checkReportStatus(data.report);
-        }
-    })
-    .catch(error => {
-        console.error('Error generating report:', error);
-        alert('Failed to generate report');
-    });
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                checkReportStatus(data.report);
+            }
+        })
+        .catch(error => {
+            console.error('Error generating report:', error);
+            alert('Failed to generate report');
+        });
 }
 
 function checkReportStatus(reportName) {
     const modal = new bootstrap.Modal(document.getElementById('statusModal'));
     modal.show();
-    
+
     function updateStatus() {
         fetch(`/api/report-status/${currentServer}/${reportName}`)
             .then(res => res.json())
@@ -137,7 +144,7 @@ function checkReportStatus(reportName) {
                 }
 
                 statusOutput.textContent = data.output || 'No output available';
-                
+
                 if (data.status === 'completed') {
                     clearInterval(statusCheckInterval);
                     loadServerData(currentServer);
@@ -161,31 +168,31 @@ function stopReportGeneration(serverName, reportName) {
     fetch(`/api/stop-report/${serverName}/${reportName}`, {
         method: 'POST'
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            alert(data.error);
-        } else {
-            loadServerData(serverName);
-            const modal = bootstrap.Modal.getInstance(document.getElementById('statusModal'));
-            modal.hide();
-        }
-    })
-    .catch(error => {
-        console.error('Error stopping report generation:', error);
-        alert('Failed to stop report generation');
-    });
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                loadServerData(serverName);
+                const modal = bootstrap.Modal.getInstance(document.getElementById('statusModal'));
+                modal.hide();
+            }
+        })
+        .catch(error => {
+            console.error('Error stopping report generation:', error);
+            alert('Failed to stop report generation');
+        });
 }
 
 function formatSize(bytes) {
     const units = ['B', 'KB', 'MB', 'GB'];
     let size = bytes;
     let unitIndex = 0;
-    
+
     while (size >= 1024 && unitIndex < units.length - 1) {
         size /= 1024;
         unitIndex++;
     }
-    
+
     return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
