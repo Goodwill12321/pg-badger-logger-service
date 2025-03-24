@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -10,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"pg-badger-service/src/config"
@@ -153,11 +153,19 @@ func StopReport(c *gin.Context, serverName string, reportName string, reportDir 
 }
 
 func GetReportStatus(c *gin.Context, serverName string, reportName string, reportDir string) {
-	reportPath := filepath.Join(reportDir, serverName, reportName)
-	outputPath := filepath.Join(reportDir, serverName, strings.TrimSuffix(reportName, ".html")+".out")
+
+	extension := filepath.Ext(reportName)
+	var reportPath, outputPath string
+	if extension == ".html" {
+		reportPath = filepath.Join(reportDir, serverName, reportName)
+		outputPath = filepath.Join(reportDir, serverName, strings.TrimSuffix(reportName, ".html")+".out")
+	} else if extension == ".out" {
+		reportPath = filepath.Join(reportDir, serverName, strings.TrimSuffix(reportName, ".out")+".html")
+		outputPath = filepath.Join(reportDir, serverName, reportName)
+	}
 
 	processInterface, exists := reportProcesses.Load(reportPath)
-	if !exists {
+	if !exists && extension == ".html" {
 		// Check if report exists
 		if _, err := os.Stat(reportPath); err == nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -170,18 +178,29 @@ func GetReportStatus(c *gin.Context, serverName string, reportName string, repor
 		return
 	}
 
-	process := processInterface.(*ReportProcess)
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read output file"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":    "running",
-		"startTime": process.StartTime,
-		"output":    string(output),
-	})
+	if exists {
+		process := processInterface.(*ReportProcess)
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "running",
+			"startTime": process.StartTime,
+			"output":    string(output)})
+	} else {
+		fileInfo, err := os.Stat(outputPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "running",
+			"startTime": fileInfo.ModTime(),
+			"output":    string(output)})
+	}
+
 }
 
 func printActiveReports() {
@@ -195,7 +214,7 @@ func killProcessTree(pid int) error {
 	if runtime.GOOS == "windows" {
 		// Windows: taskkill /T /F /PID <pid>
 		cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		//cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 		return cmd.Run()
 	} else {
 		// Linux/macOS: рекурсивное завершение процессов
