@@ -11,7 +11,7 @@ This service provides a web interface for analyzing PostgreSQL logs using pgbadg
 
 - Go 1.21 or later
 - PostgreSQL server(s) with logging enabled
-- pgbadger installed on the system
+- pgbadger (and perl) installed on the system
 
 ## Configuration
 
