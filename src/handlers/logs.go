@@ -30,7 +30,7 @@ func GetLogs(c *gin.Context, server models.PostgresServer) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT * FROM pg_ls_logdir() WHERE name like '%.log'")
+	rows, err := db.Query("SELECT * FROM pg_ls_logdir() WHERE name like '%.log' ORDER BY modification")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get logs: %v", err)})
 		return
